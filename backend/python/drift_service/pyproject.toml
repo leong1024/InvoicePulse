@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Supabase invoice extraction drift monitoring with Evidently."
 requires-python = ">=3.11"
 dependencies = [
+  "datasets",
   "evidently",
   "pandas",
   "pydantic-settings",
@@ -17,6 +18,7 @@ test = [
 
 [project.scripts]
 invoicepulse-drift-run = "drift_service.run_once:main"
+invoicepulse-hf-load = "drift_service.test_dataset_loader:main"
 
 [build-system]
 requires = ["hatchling"]

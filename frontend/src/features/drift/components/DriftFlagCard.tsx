@@ -28,15 +28,15 @@ export function DriftFlagCard({
       <p className="flag-card__reason">{state.reason}</p>
       <dl className="note-metrics">
         <div>
-          <dt>Current rows</dt>
-          <dd>{report?.current_count ?? "--"}</dd>
+          <dt>Current status</dt>
+          <dd>{statusLabel(report)}</dd>
         </div>
         <div>
-          <dt>Reference rows</dt>
-          <dd>{report?.reference_count ?? "--"}</dd>
+          <dt>Data quality</dt>
+          <dd>{report?.drift_flag ? "Attention required" : "Within expected range"}</dd>
         </div>
         <div>
-          <dt>Last computed</dt>
+          <dt>Last updated</dt>
           <dd>{formatDate(report?.computed_at)}</dd>
         </div>
       </dl>
@@ -53,7 +53,7 @@ function getFlagState(
     return {
       variant: "pending",
       label: "Checking",
-      reason: "Reading the latest drift notebook entry.",
+      reason: "Loading the latest Evidently AI monitoring result.",
     };
   }
   if (error) {
@@ -95,8 +95,24 @@ function getFlagState(
     variant: "healthy",
     label: "No Drift",
     reason:
-      report.flag_reason ?? "The latest invoice window matches the baseline.",
+      report.flag_reason ?? "No significant distribution shift detected.",
   };
+}
+
+function statusLabel(report: DriftStatusResponse | null) {
+  if (!report) {
+    return "Not available";
+  }
+  if (report.status === "error") {
+    return "Execution issue";
+  }
+  if (report.status === "insufficient_data") {
+    return "Baseline unavailable";
+  }
+  if (report.status === "not_available") {
+    return "Not available";
+  }
+  return "Operational";
 }
 
 function formatDate(value: string | null | undefined) {

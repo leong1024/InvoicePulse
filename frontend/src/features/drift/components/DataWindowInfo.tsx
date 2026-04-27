@@ -2,19 +2,19 @@ import { NotepadPanel } from "./NotepadPanel";
 
 export function DataWindowInfo() {
   return (
-    <NotepadPanel eyebrow="Window recipe" title="How the flag is computed">
+    <NotepadPanel eyebrow="Monitoring overview" title="Why Drift Monitoring Matters">
       <ol className="window-steps">
         <li>
-          Query the newest <strong>120</strong> invoice extraction rows.
+          Detect silent changes in invoice patterns early with Evidently AI.
         </li>
         <li>
-          Compare the newest <strong>20</strong> rows as current data.
+          Protect extraction accuracy and reconciliation reliability over time.
         </li>
         <li>
-          Use the next <strong>100</strong> rows as reference data.
+          Reduce operational risk by surfacing quality degradation quickly.
         </li>
         <li>
-          Run Evidently <strong>DataDriftPreset</strong> and store the summary.
+          Maintain confidence in analytics, alerts, and finance workflows.
         </li>
       </ol>
     </NotepadPanel>

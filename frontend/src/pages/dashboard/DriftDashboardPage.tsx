@@ -37,10 +37,11 @@ export function DriftDashboardPage() {
     <main className="notebook-page">
       <header className="dashboard-header">
         <p className="note-eyebrow">InvoicePulse</p>
-        <h1>Supabase Invoice Drift Notebook</h1>
+        <h1>Invoice Quality Monitoring</h1>
         <p>
-          A notepad-style monitor for invoice extraction records, powered by
-          Evidently and the latest 20 vs prior 100 Supabase row comparison.
+          Powered by Evidently AI to detect distribution shifts and data quality
+          changes before they impact financial reporting, automation accuracy,
+          and downstream decisions.
         </p>
         <div className="dashboard-actions">
           <button

@@ -1,0 +1,30 @@
+[project]
+name = "invoicepulse-drift-service"
+version = "0.1.0"
+description = "Supabase invoice extraction drift monitoring with Evidently."
+requires-python = ">=3.11"
+dependencies = [
+  "evidently",
+  "pandas",
+  "pydantic-settings",
+  "supabase",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest",
+]
+
+[project.scripts]
+invoicepulse-drift-run = "drift_service.run_once:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/drift_service"]

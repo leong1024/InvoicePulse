@@ -1,0 +1,245 @@
+# Invoice Extraction: End-to-End Analysis
+
+This document explains how LangClaw invoice extraction works, what gets stored in Supabase, and how to query/use the data.
+
+## 1) High-level flow
+
+Invoice extraction is implemented in `langclaw/agent/tools/invoice_extraction.py` as the `invoice_extraction` tool.
+
+Request inputs:
+- `image_url` (optional)
+- `image_path` (optional, local file)
+- `text` (optional)
+
+At least one input is required.
+
+Execution flow:
+1. Validate input presence.
+2. If `image_url` is provided, validate URL safety (`validate_url_target`).
+3. If `image_path` is provided:
+   - validate image type/size,
+   - upload image to Supabase Storage bucket `invoice-images`,
+   - use uploaded public URL as extraction image URL.
+4. Call Gemini-compatible chat completion endpoint and request strict JSON with keys:
+   - `invoice_id`, `vendor`, `invoice_date`, `total`, `currency`
+5. Normalize and validate response:
+   - `invoice_id`: `string | null`
+   - `vendor`: `string`
+   - `invoice_date`: `YYYY-MM-DD` or `null`
+   - `total`: `number | null`
+   - `currency`: uppercased `string`
+6. Upload full extraction result JSON to storage bucket `invoice-extractions`.
+7. Insert flattened record into Postgres table `public.invoice_extractions`.
+8. Return tool response containing:
+   - normalized invoice payload,
+   - storage metadata,
+   - database insert result,
+   - `status` (`success` or `partial`) and `errors`.
+
+## 2) Supabase schema (from migration)
+
+Migration: `supabase/migrations/0001_invoice_extractions.sql`
+
+Table: `public.invoice_extractions`
+
+Columns:
+- `id uuid primary key default gen_random_uuid()`
+- `created_at timestamptz not null default now()`
+- `source_text text`
+- `image_url text`
+- `image_storage_bucket text`
+- `image_storage_path text`
+- `result_storage_bucket text`
+- `result_storage_path text`
+- `invoice_id text`
+- `vendor text`
+- `invoice_date date`
+- `total numeric`
+- `currency text`
+- `model text not null`
+- `status text not null default 'success'`
+- `error text`
+
+Indexes:
+- `invoice_extractions_created_at_idx` on `(created_at desc)`
+- `invoice_extractions_vendor_idx` on `(vendor)`
+- `invoice_extractions_currency_idx` on `(currency)`
+
+RLS:
+- `alter table public.invoice_extractions enable row level security;`
+- No policy is created in this migration, so querying behavior depends on your later policies and the key used.
+
+Storage buckets:
+- `invoice-images` (public = true)
+- `invoice-extractions` (public = false)
+
+## 3) Invoice payload contract
+
+Normalized invoice payload returned by the tool:
+
+```json
+{
+  "invoice_id": "INV-2026-001",
+  "vendor": "Adobe",
+  "invoice_date": "2026-04-27",
+  "total": 2318.98,
+  "currency": "JPY"
+}
+```
+
+Nullability currently:
+- `invoice_id`: nullable
+- `invoice_date`: nullable
+- `total`: nullable
+- `vendor`: not null in normalized payload (empty string if unknown)
+- `currency`: not null in normalized payload (empty string if unknown)
+
+## 4) Tool response schema (operational)
+
+Typical success response shape:
+
+```json
+{
+  "invoice": { "...": "..." },
+  "image": {
+    "inputUrl": null,
+    "uploaded": false,
+    "bucket": null,
+    "path": null,
+    "publicUrl": null
+  },
+  "storage": {
+    "jsonUploaded": true,
+    "bucket": "invoice-extractions",
+    "path": "extractions/YYYY/MM/DD/<id>.json",
+    "publicUrl": null,
+    "error": null
+  },
+  "database": {
+    "inserted": true,
+    "table": "invoice_extractions",
+    "id": "<uuid>",
+    "error": null
+  },
+  "status": "success",
+  "errors": []
+}
+```
+
+Error response shape:
+
+```json
+{
+  "status": "error",
+  "error": "<message>"
+}
+```
+
+## 5) Query recipes (Postgres/Supabase SQL)
+
+### Latest extracted invoices
+
+```sql
+select
+  id,
+  created_at,
+  vendor,
+  invoice_id,
+  invoice_date,
+  total,
+  currency,
+  status
+from public.invoice_extractions
+order by created_at desc
+limit 50;
+```
+
+### Find failed/partial writes
+
+```sql
+select
+  id,
+  created_at,
+  status,
+  error
+from public.invoice_extractions
+where status <> 'success'
+   or error is not null
+order by created_at desc;
+```
+
+### Vendor spend summary
+
+```sql
+select
+  vendor,
+  currency,
+  count(*) as invoice_count,
+  sum(total) as total_amount
+from public.invoice_extractions
+where total is not null
+group by vendor, currency
+order by total_amount desc nulls last;
+```
+
+### Monthly spend trend
+
+```sql
+select
+  date_trunc('month', coalesce(invoice_date::timestamp, created_at)) as month,
+  currency,
+  sum(total) as total_amount,
+  count(*) as invoice_count
+from public.invoice_extractions
+where total is not null
+group by 1, 2
+order by 1 desc, 2;
+```
+
+### Detect records missing key invoice fields
+
+```sql
+select
+  id,
+  created_at,
+  vendor,
+  invoice_id,
+  invoice_date,
+  total,
+  currency
+from public.invoice_extractions
+where coalesce(vendor, '') = ''
+   or coalesce(currency, '') = ''
+   or invoice_date is null
+   or total is null
+order by created_at desc;
+```
+
+## 6) Joining row data to full JSON result in storage
+
+Rows contain:
+- `result_storage_bucket`
+- `result_storage_path`
+
+You can use those to fetch the richer extraction JSON (`rawResponse`, normalized invoice, source text, model, timestamp) from Storage.
+
+Pattern:
+1. Query rows from `invoice_extractions`.
+2. For each row, read object at:
+   - bucket = `result_storage_bucket`
+   - path = `result_storage_path`
+3. Parse JSON and process `rawResponse` for advanced QA/debug.
+
+## 7) Practical downstream uses
+
+- Build payable queue: `where status='success' and total is not null and invoice_date is not null`.
+- Compliance checks: flag rows with missing `invoice_id` or missing `currency`.
+- Cost analytics: aggregate spend by `vendor`, `currency`, month.
+- Reliability monitoring: alert on spikes in `status='partial'` or non-null `error`.
+- Model quality audits: sample rows and compare normalized fields vs `rawResponse`.
+
+## 8) Notes and caveats
+
+- `invoice_date` must be ISO date (`YYYY-MM-DD`) if present; relative phrases (like "last Friday") fail validation.
+- `invoice-extractions` bucket is non-public in migration; access may require service-role or signed URLs depending on your policies.
+- RLS is enabled on the table; add explicit policies for your client roles.

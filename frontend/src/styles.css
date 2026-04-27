@@ -53,6 +53,43 @@ select {
   font-size: 1.05rem;
 }
 
+.dashboard-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.refresh-button {
+  border: 1px solid rgba(82, 62, 38, 0.32);
+  border-radius: 16px;
+  padding: 10px 14px;
+  background: #ffe59a;
+  color: #33271b;
+  font-family: "Segoe Print", "Bradley Hand", cursive;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 16px rgba(74, 52, 28, 0.14);
+}
+
+.refresh-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.refresh-button:disabled {
+  background: #e8e1d3;
+  color: #6b5a46;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.dashboard-error {
+  margin: 0;
+  color: #9e3f2f;
+  font-size: 0.9rem;
+}
+
 .notebook-grid {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);

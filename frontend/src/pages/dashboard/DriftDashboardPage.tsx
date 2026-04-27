@@ -1,3 +1,6 @@
+import { useState } from "react";
+
+import { runDriftNow } from "../../features/drift/api";
 import { DataWindowInfo } from "../../features/drift/components/DataWindowInfo";
 import { DriftFlagCard } from "../../features/drift/components/DriftFlagCard";
 import { DriftMetricsPanel } from "../../features/drift/components/DriftMetricsPanel";
@@ -10,6 +13,25 @@ import {
 export function DriftDashboardPage() {
   const latestQuery = useLatestDriftReport();
   const historyQuery = useDriftHistory(30);
+  const [runError, setRunError] = useState<string | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+
+  async function handleRefreshDrift() {
+    try {
+      setRunError(null);
+      setIsRunning(true);
+      await runDriftNow();
+      await Promise.all([latestQuery.refetch(), historyQuery.refetch()]);
+    } catch (error) {
+      setRunError(
+        error instanceof Error
+          ? error.message
+          : "Unable to run drift analysis right now.",
+      );
+    } finally {
+      setIsRunning(false);
+    }
+  }
 
   return (
     <main className="notebook-page">
@@ -20,6 +42,17 @@ export function DriftDashboardPage() {
           A notepad-style monitor for invoice extraction records, powered by
           Evidently and the latest 20 vs prior 100 Supabase row comparison.
         </p>
+        <div className="dashboard-actions">
+          <button
+            type="button"
+            className="refresh-button"
+            onClick={handleRefreshDrift}
+            disabled={isRunning}
+          >
+            {isRunning ? "Running Drift..." : "Refresh Drift"}
+          </button>
+          {runError ? <p className="dashboard-error">{runError}</p> : null}
+        </div>
       </header>
 
       <section className="notebook-grid">

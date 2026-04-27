@@ -12,6 +12,17 @@ export async function fetchDriftHistory(
   return fetchJson<DriftHistoryResponse>(`/api/drift/history?limit=${limit}`);
 }
 
+export async function runDriftNow(): Promise<DriftStatusResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/drift/run`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(`Request failed with ${response.status}`);
+  }
+  await response.json();
+  return fetchLatestDriftReport();
+}
+
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
   if (!response.ok) {

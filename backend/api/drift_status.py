@@ -4,10 +4,13 @@ from fastapi import APIRouter, Query
 
 from backend.api.schemas import (
     DriftHistoryResponse,
+    DriftRunResponse,
     DriftStatusResponse,
+    drift_run_response_from_report,
     drift_response_from_report,
 )
 from drift_service.config import get_settings
+from drift_service.run_once import run_once
 from drift_service.supabase_client import InvoiceDriftRepository
 
 
@@ -32,3 +35,10 @@ def drift_history(
     return DriftHistoryResponse(
         reports=[drift_response_from_report(report) for report in reports]
     )
+
+
+@router.post("/run", response_model=DriftRunResponse)
+def run_drift_analysis() -> DriftRunResponse:
+    run_once()
+    latest = _repository().fetch_latest_drift_report()
+    return drift_run_response_from_report(latest)

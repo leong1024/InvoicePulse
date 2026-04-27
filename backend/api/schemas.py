@@ -33,6 +33,13 @@ class DriftHistoryResponse(BaseModel):
     reports: list[DriftStatusResponse]
 
 
+class DriftRunResponse(BaseModel):
+    status: DriftStatus
+    computed_at: str | None
+    drift_flag: bool
+    message: str
+
+
 def drift_response_from_report(row: dict[str, Any] | None) -> DriftStatusResponse:
     if row is None:
         return DriftStatusResponse(
@@ -78,3 +85,20 @@ def _as_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def drift_run_response_from_report(row: dict[str, Any] | None) -> DriftRunResponse:
+    report = drift_response_from_report(row)
+    message = {
+        "success": "Drift analysis completed.",
+        "insufficient_data": "Drift run finished with insufficient baseline rows.",
+        "error": "Drift run failed. Check latest report details.",
+        "not_available": "Drift run did not return a report.",
+    }.get(report.status, "Drift run completed.")
+
+    return DriftRunResponse(
+        status=report.status,
+        computed_at=report.computed_at,
+        drift_flag=report.drift_flag,
+        message=message,
+    )
